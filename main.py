@@ -1,27 +1,36 @@
-import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Dict
+import json
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-# Health check endpoint
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+# Load skills and learning paths
+with open("skills.json") as f:
+    skill_keywords = json.load(f)
 
-# Version endpoint
-@app.get("/version")
-def version():
-    return {"model_version": "1.0.0"}
+with open("learning_paths.json") as f:
+    learning_paths = json.load(f)
 
-# Input model for /evaluate-fit
+# Fit config (optional tuning)
+FIT_CUTOFFS = {
+    "strong_fit": 0.75,
+    "moderate_fit": 0.4
+}
+
+# ----------------------------
+# Request Model
+# ----------------------------
 class FitRequest(BaseModel):
     resume_text: str
     job_description: str
 
-# Output model (optional, for strict typing)
-class LearningStep(BaseModel):
+# ----------------------------
+# Response Model
+# ----------------------------
+class Step(BaseModel):
     skill: str
     steps: List[str]
 
@@ -30,42 +39,64 @@ class FitResponse(BaseModel):
     verdict: str
     matched_skills: List[str]
     missing_skills: List[str]
-    recommended_learning_track: List[LearningStep]
+    recommended_learning_track: List[Step]
     status: str
 
+# ----------------------------
+# Routes
+# ----------------------------
+@app.get("/")
+def read_root():
+    return {"message": "Resume–Role Fit Evaluator is running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.get("/version")
+def version():
+    return {"model_version": "1.0.0"}
+
 @app.post("/evaluate-fit", response_model=FitResponse)
-def evaluate_fit(data: FitRequest):
-    # Dummy logic (replace with actual scoring + skill extraction)
+def evaluate_fit(payload: FitRequest):
+    resume = payload.resume_text.lower()
+    job = payload.job_description.lower()
+
+    # Extract skills by matching keywords
+    matched_skills = []
+    for skill in skill_keywords:
+        if skill in resume and skill in job:
+            matched_skills.append(skill)
+
+    missing_skills = []
+    for skill in skill_keywords:
+        if skill in job and skill not in resume:
+            missing_skills.append(skill)
+
+    # TF-IDF fit score
+    vect = TfidfVectorizer()
+    vectors = vect.fit_transform([resume, job])
+    score = cosine_similarity(vectors[0], vectors[1])[0][0]
+
+    # Verdict
+    if score >= FIT_CUTOFFS["strong_fit"]:
+        verdict = "strong_fit"
+    elif score >= FIT_CUTOFFS["moderate_fit"]:
+        verdict = "moderate_fit"
+    else:
+        verdict = "weak_fit"
+
+    # Learning path
+    track = []
+    for skill in missing_skills:
+        if skill in learning_paths:
+            track.append(Step(skill=skill, steps=learning_paths[skill]["steps"][:4]))
+
     return {
-        "fit_score": 0.46,
-        "verdict": "moderate_fit",
-        "matched_skills": ["Python", "Cloud Basics"],
-        "missing_skills": ["Node.js", "MongoDB", "Docker", "AWS", "System Design"],
-        "recommended_learning_track": [
-            {
-                "skill": "Node.js",
-                "steps": [
-                    "Install Node.js and learn basic syntax",
-                    "Understand asynchronous programming in JS",
-                    "Build a REST API with Express.js",
-                    "Handle authentication and routing"
-                ]
-            },
-            {
-                "skill": "Docker",
-                "steps": [
-                    "Understand containers vs virtual machines",
-                    "Install Docker CLI and Docker Desktop",
-                    "Write a Dockerfile for a simple app",
-                    "Build and run Docker containers locally"
-                ]
-            }
-        ],
+        "fit_score": round(score, 2),
+        "verdict": verdict,
+        "matched_skills": matched_skills,
+        "missing_skills": missing_skills,
+        "recommended_learning_track": track,
         "status": "success"
     }
-
-# Optional: dynamic port for local testing
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
