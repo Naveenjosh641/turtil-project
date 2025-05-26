@@ -2,34 +2,55 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Dict
 import json
+import os
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-# Load skills and learning paths
-with open("skills.json") as f:
-    skill_keywords = json.load(f)
+# Load skills.json or use default
+if os.path.exists("skills.json"):
+    with open("skills.json") as f:
+        skill_keywords = json.load(f)
+else:
+    skill_keywords = ["python", "flask", "docker", "aws", "system design", "node.js", "mongodb"]
 
-with open("learning_paths.json") as f:
-    learning_paths = json.load(f)
+# Load learning_paths.json or use default
+if os.path.exists("learning_paths.json"):
+    with open("learning_paths.json") as f:
+        learning_paths = json.load(f)
+else:
+    learning_paths = {
+        "docker": {
+            "steps": [
+                "Understand containers vs virtual machines",
+                "Install Docker CLI and Docker Desktop",
+                "Write a Dockerfile for a simple app",
+                "Build and run Docker containers locally"
+            ]
+        },
+        "aws": {
+            "steps": [
+                "Understand cloud basics",
+                "Explore AWS free tier services",
+                "Deploy a project using EC2 and S3",
+                "Set up basic IAM roles"
+            ]
+        }
+    }
 
-# Fit config (optional tuning)
+# Fit config
 FIT_CUTOFFS = {
     "strong_fit": 0.75,
     "moderate_fit": 0.4
 }
 
-# ----------------------------
-# Request Model
-# ----------------------------
+# Input schema
 class FitRequest(BaseModel):
     resume_text: str
     job_description: str
 
-# ----------------------------
-# Response Model
-# ----------------------------
+# Output schema
 class Step(BaseModel):
     skill: str
     steps: List[str]
@@ -42,15 +63,12 @@ class FitResponse(BaseModel):
     recommended_learning_track: List[Step]
     status: str
 
-# ----------------------------
-# Routes
-# ----------------------------
 @app.get("/")
 def read_root():
-    return {"message": "Resume–Role Fit Evaluator is running"}
+    return {"message": "Resume–Role Fit Evaluator is running."}
 
 @app.get("/health")
-def health_check():
+def health():
     return {"status": "ok"}
 
 @app.get("/version")
@@ -62,23 +80,14 @@ def evaluate_fit(payload: FitRequest):
     resume = payload.resume_text.lower()
     job = payload.job_description.lower()
 
-    # Extract skills by matching keywords
-    matched_skills = []
-    for skill in skill_keywords:
-        if skill in resume and skill in job:
-            matched_skills.append(skill)
+    matched_skills = [skill for skill in skill_keywords if skill in resume and skill in job]
+    missing_skills = [skill for skill in skill_keywords if skill in job and skill not in resume]
 
-    missing_skills = []
-    for skill in skill_keywords:
-        if skill in job and skill not in resume:
-            missing_skills.append(skill)
-
-    # TF-IDF fit score
+    # TF-IDF score
     vect = TfidfVectorizer()
     vectors = vect.fit_transform([resume, job])
     score = cosine_similarity(vectors[0], vectors[1])[0][0]
 
-    # Verdict
     if score >= FIT_CUTOFFS["strong_fit"]:
         verdict = "strong_fit"
     elif score >= FIT_CUTOFFS["moderate_fit"]:
@@ -86,11 +95,12 @@ def evaluate_fit(payload: FitRequest):
     else:
         verdict = "weak_fit"
 
-    # Learning path
+    # Recommend learning tracks
     track = []
     for skill in missing_skills:
         if skill in learning_paths:
-            track.append(Step(skill=skill, steps=learning_paths[skill]["steps"][:4]))
+            steps = learning_paths[skill]["steps"][:4]
+            track.append(Step(skill=skill, steps=steps))
 
     return {
         "fit_score": round(score, 2),
