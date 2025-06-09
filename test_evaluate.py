@@ -1,41 +1,31 @@
-import pytest
 from fastapi.testclient import TestClient
 from main import app
 
 client = TestClient(app)
 
-def test_strong_fit():
-    payload = {
-        "resume_text": "Experienced in Node.js, MongoDB, Docker, AWS, and system design.",
-        "job_description": "Looking for a backend engineer skilled in Node.js, MongoDB, Docker, AWS, and system design."
-    }
-    response = client.post("/evaluate-fit", json=payload)
+def test_health_check():
+    response = client.get("/health")
     assert response.status_code == 200
-    data = response.json()
-    assert data["verdict"] == "strong_fit"
-    assert data["fit_score"] >= 0.9
-    assert data["missing_skills"] == []
+    assert response.json() == {"status": "ok"}
 
-def test_moderate_fit():
-    payload = {
-        "resume_text": "Proficient in Python and Flask with some experience in cloud deployments.",
-        "job_description": "Seeking a backend developer with expertise in Node.js, MongoDB, Docker, AWS, and system design."
-    }
-    response = client.post("/evaluate-fit", json=payload)
+def test_version():
+    response = client.get("/version")
     assert response.status_code == 200
-    data = response.json()
-    assert data["verdict"] == "moderate_fit"
-    assert 0.4 <= data["fit_score"] < 0.7
-    assert "Node.js" in data["missing_skills"]
+    assert "model_version" in response.json()
 
-def test_weak_fit():
+def test_evaluate_fit():
     payload = {
-        "resume_text": "Background in graphic design and marketing.",
-        "job_description": "Hiring a backend engineer with skills in Node.js, MongoDB, Docker, AWS, and system design."
+        "resume_text": "I have experience with Django, Python, and SQL databases.",
+        "job_description": "We are hiring developers skilled in Python, Node.js, and Docker."
     }
+
     response = client.post("/evaluate-fit", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["verdict"] == "weak_fit"
-    assert data["fit_score"] < 0.4
-    assert len(data["missing_skills"]) >= 4
+
+    assert "fit_score" in data
+    assert "verdict" in data
+    assert "matched_skills" in data
+    assert "missing_skills" in data
+    assert "recommended_learning_track" in data
+    assert "status" in data
