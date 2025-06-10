@@ -1,11 +1,20 @@
+import json
 import re
 
-def extract_skills(text, skills_config):
+# Load skill aliases from config.json
+with open('config.json') as f:
+    config = json.load(f)
+    skill_aliases = config.get("skill_aliases", {})
+
+def extract_skills(text, skills_list):
     text = text.lower()
-    found = set()
-    for canonical, variants in skills_config.items():
-        for variant in variants:
-            if re.search(r'\b' + re.escape(variant.lower()) + r'\b', text):
-                found.add(canonical)
-                break
-    return found
+    extracted = set()
+    for skill in skills_list:
+        pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+        if re.search(pattern, text):
+            extracted.add(skill)
+    # Apply aliases
+    normalized = set()
+    for skill in extracted:
+        normalized.add(skill_aliases.get(skill, skill))
+    return list(normalized)
