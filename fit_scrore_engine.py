@@ -1,33 +1,16 @@
-from skill_extractor import extract_skills
+import json
 
-def evaluate_fit(resume_text, job_description, skills_config, learning_paths):
-    resume_skills = extract_skills(resume_text, skills_config)
-    job_skills = extract_skills(job_description, skills_config)
+# Load thresholds from config.json
+with open('config.json') as f:
+    config = json.load(f)
+    thresholds = config.get("fit_score_thresholds", {})
 
-    matched = list(resume_skills & job_skills)
-    missing = list(job_skills - resume_skills)
-
-    fit_score = len(matched) / max(len(job_skills), 1)
-    verdict = (
-        "strong_fit" if fit_score >= 0.75 else
-        "moderate_fit" if fit_score >= 0.4 else
-        "weak_fit"
-    )
-
-    track = []
-    for skill in missing:
-        steps = learning_paths.get(skill.lower(), {}).get("steps", [])
-        if steps:
-            track.append({
-                "skill": skill,
-                "steps": steps[:4]
-            })
-
-    return {
-        "fit_score": round(fit_score, 2),
-        "verdict": verdict,
-        "matched_skills": matched,
-        "missing_skills": missing,
-        "recommended_learning_track": track,
-        "status": "success"
-    }
+def compute_verdict(score):
+    if score >= thresholds.get("strong_fit", 0.9):
+        return "strong_fit"
+    elif score >= thresholds.get("moderate_fit", 0.7):
+        return "moderate_fit"
+    elif score >= thresholds.get("weak_fit", 0.4):
+        return "weak_fit"
+    else:
+        return "very_weak_fit"
