@@ -155,7 +155,7 @@ def evaluate(req: EvaluateRequest):
 # Local dev entry-point
 # ───────────────────────────────────────────────────────────────
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PORT", 8000))
