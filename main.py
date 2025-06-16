@@ -15,7 +15,7 @@ are already present in the repository:
 * learning_path_skills.json
 """
 
-from _future_ import annotations
+from __future__ import annotations
 
 import json
 import os
