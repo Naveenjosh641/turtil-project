@@ -31,7 +31,7 @@ from pydantic import BaseModel
 # Data loading helpers
 # ───────────────────────────────────────────────────────────────
 
-BASE_DIR = Path(_file_).parent
+BASE_DIR = Path(__file__).parent
 
 def _load_json(filename: str) -> dict:
     try:
