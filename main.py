@@ -149,6 +149,7 @@ def evaluate(req: EvaluateRequest):
         "matched_skills": matched,
         "missing_skills": missing,
         "recommended_learning_path": build_learning_path(missing),
+        "status":"success"
     }
 
 # ───────────────────────────────────────────────────────────────
